@@ -1,0 +1,14 @@
+{
+  "name": "roomtone",
+  "short_name": "roomtone",
+  "description": "매일 한 곡, 한 줄, 하나의 방.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#08090b",
+  "theme_color": "#08090b",
+  "icons": [
+    { "src": "/icon.svg", "type": "image/svg+xml", "sizes": "any", "purpose": "any" }
+  ]
+}
