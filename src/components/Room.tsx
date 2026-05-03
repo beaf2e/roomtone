@@ -31,7 +31,7 @@ export default function Room({
   function onDiscClick(e: React.MouseEvent) {
     if (!canPlay) return;
     e.stopPropagation();
-    void toggle(date, room?.song?.previewUrl);
+    void toggle(date, room?.song?.previewUrl, room?.song?.startAt ?? 0);
   }
 
   return (

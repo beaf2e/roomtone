@@ -5,7 +5,7 @@ import { useStore } from "@/lib/store";
 import { shiftDate, todayKey } from "@/lib/utils";
 import Room from "./Room";
 
-const PAST_DAYS = 90;
+const PAST_DAYS = 365;
 // We render today + PAST_DAYS days back, oldest first → today is the rightmost slide.
 
 export default function Corridor({ onTapRoom }: { onTapRoom: (date: string) => void }) {

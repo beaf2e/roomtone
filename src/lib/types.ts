@@ -15,6 +15,8 @@ export type Room = {
     artworkUrl?: string;
     /** Deep link to the song on Apple Music (for "전체 듣기" exit). */
     trackViewUrl?: string;
+    /** Seconds offset within the 30s preview to start playback at. 0..~25. */
+    startAt?: number;
   };
   /** Hue 0–360 used to tint the room. Picked by the user (or auto from song). */
   hue: number;

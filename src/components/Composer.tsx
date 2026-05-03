@@ -96,10 +96,16 @@ export default function Composer({
       previewUrl: t.previewUrl,
       artworkUrl: bigArtwork(t.artworkUrl100, 600),
       trackViewUrl: t.trackViewUrl,
+      startAt: 0,
     });
     setQuery(`${t.trackName} ${t.artistName}`);
     setResults([]);
     stopPlay();
+  }
+
+  function setStartAt(s: number) {
+    if (!picked) return;
+    setPicked({ ...picked, startAt: Math.max(0, Math.min(28, s)) });
   }
 
   function clearPick() {
@@ -209,7 +215,13 @@ export default function Composer({
                       </div>
                     </div>
                     <button
-                      onClick={() => void togglePlay(`composer:${date}`, picked.previewUrl)}
+                      onClick={() =>
+                        void togglePlay(
+                          `composer:${date}`,
+                          picked.previewUrl,
+                          picked.startAt ?? 0,
+                        )
+                      }
                       disabled={!picked.previewUrl}
                       aria-label="미리듣기"
                       className="grid place-items-center w-9 h-9 rounded-full bg-white text-black disabled:opacity-30"
@@ -241,6 +253,62 @@ export default function Composer({
                       value={query}
                       onChange={(e) => setQuery(e.target.value)}
                     />
+                  </div>
+                )}
+
+                {picked && picked.previewUrl && (
+                  <div className="mt-3">
+                    <div className="flex items-center justify-between text-[11px] uppercase tracking-[0.16em] text-[var(--fg-faint)]">
+                      <span>시작 지점</span>
+                      <span className="tabular-nums">
+                        {(picked.startAt ?? 0).toFixed(1)}초부터
+                      </span>
+                    </div>
+                    <div className="relative mt-2">
+                      <div
+                        className="h-7 rounded-lg overflow-hidden hairline relative"
+                        style={{
+                          background:
+                            "linear-gradient(90deg, rgba(255,255,255,0.06), rgba(255,255,255,0.18), rgba(255,255,255,0.06))",
+                        }}
+                      >
+                        {/* 30s waveform-ish shimmer (decorative) */}
+                        <div className="absolute inset-0 flex items-center gap-[2px] px-1 opacity-60">
+                          {Array.from({ length: 60 }).map((_, i) => {
+                            const h = 30 + (Math.sin(i * 1.7) * 0.5 + 0.5) * 60;
+                            return (
+                              <span
+                                key={i}
+                                className="block w-[3px] rounded-full bg-white/35"
+                                style={{ height: `${h}%` }}
+                              />
+                            );
+                          })}
+                        </div>
+                        {/* Trim marker */}
+                        <div
+                          className="absolute top-0 bottom-0 w-[3px] bg-white shadow-[0_0_0_1px_rgba(0,0,0,0.4)] rounded-full"
+                          style={{
+                            left: `${((picked.startAt ?? 0) / 30) * 100}%`,
+                            transform: "translateX(-50%)",
+                          }}
+                          aria-hidden
+                        />
+                      </div>
+                      <input
+                        type="range"
+                        min={0}
+                        max={28}
+                        step={0.1}
+                        value={picked.startAt ?? 0}
+                        onChange={(e) => setStartAt(Number(e.target.value))}
+                        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                        aria-label="재생 시작 지점"
+                      />
+                    </div>
+                    <div className="mt-2 text-[11px] text-[var(--fg-faint)]">
+                      이 지점부터 재생돼요. 인스타처럼 좋아하는 부분으로 맞춰보세요.
+                    </div>
                   </div>
                 )}
 

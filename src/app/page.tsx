@@ -1,9 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { Plus } from "lucide-react";
+import { Plus, Calendar as CalendarIcon } from "lucide-react";
 import Corridor from "@/components/Corridor";
 import Composer from "@/components/Composer";
+import Calendar from "@/components/Calendar";
 import PwaInstaller from "@/components/PwaInstaller";
 import { useStore } from "@/lib/store";
 import { todayKey, formatDateShort, isToday } from "@/lib/utils";
@@ -12,6 +13,7 @@ export default function Page() {
   const focus = useStore((s) => s.focus);
   const setFocus = useStore((s) => s.setFocus);
   const [composeFor, setComposeFor] = useState<string | null>(null);
+  const [calendarOpen, setCalendarOpen] = useState(false);
 
   const today = todayKey();
 
@@ -19,18 +21,27 @@ export default function Page() {
     <main className="relative w-full h-[100dvh] overflow-hidden">
       <Corridor onTapRoom={(d) => setComposeFor(d)} />
 
-      {/* Header — wordmark + date crumb */}
+      {/* Header — wordmark + calendar + today crumb */}
       <div className="pointer-events-none fixed top-0 left-0 right-0 z-20 flex items-center justify-between px-5 pt-[max(env(safe-area-inset-top),12px)]">
         <div className="text-[13px] font-semibold tracking-tight text-[var(--fg)]">
           roomtone
         </div>
-        <button
-          onClick={() => setFocus(today)}
-          disabled={isToday(focus)}
-          className="pointer-events-auto btn-ghost text-[11.5px] uppercase tracking-[0.18em]"
-        >
-          {isToday(focus) ? "오늘" : `오늘로 · ${formatDateShort(focus)}`}
-        </button>
+        <div className="pointer-events-auto flex items-center gap-1">
+          <button
+            onClick={() => setCalendarOpen(true)}
+            aria-label="캘린더 열기"
+            className="btn-ghost p-1.5 rounded-full"
+          >
+            <CalendarIcon size={16} />
+          </button>
+          <button
+            onClick={() => setFocus(today)}
+            disabled={isToday(focus)}
+            className="btn-ghost text-[11.5px] uppercase tracking-[0.18em]"
+          >
+            {isToday(focus) ? "오늘" : `오늘로 · ${formatDateShort(focus)}`}
+          </button>
+        </div>
       </div>
 
       {/* FAB — open composer for the focused day */}
@@ -52,6 +63,8 @@ export default function Page() {
         open={composeFor !== null}
         onClose={() => setComposeFor(null)}
       />
+
+      <Calendar open={calendarOpen} onClose={() => setCalendarOpen(false)} />
 
       <PwaInstaller />
     </main>

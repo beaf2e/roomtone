@@ -19,14 +19,14 @@ type State = {
   playing: string | null;
   /** 0..1 progress for the playing track (driven by timeupdate). */
   progress: number;
-  toggle: (date: string, src: string | undefined) => Promise<void>;
+  toggle: (date: string, src: string | undefined, startAt?: number) => Promise<void>;
   stop: () => void;
 };
 
 export const usePlayer = create<State>((set, get) => ({
   playing: null,
   progress: 0,
-  toggle: async (date, src) => {
+  toggle: async (date, src, startAt = 0) => {
     if (!src) return;
     const a = audio();
     if (get().playing === date) {
@@ -36,7 +36,16 @@ export const usePlayer = create<State>((set, get) => ({
     }
     a.pause();
     a.src = src;
-    a.currentTime = 0;
+    const seekTo = Math.max(0, startAt);
+    const trySeek = () => {
+      try {
+        a.currentTime = seekTo;
+      } catch {
+        /* ignore — some browsers need loadedmetadata first */
+      }
+    };
+    trySeek();
+    a.addEventListener("loadedmetadata", trySeek, { once: true });
     const onTime = () => {
       const p = a.duration > 0 ? a.currentTime / a.duration : 0;
       set({ progress: p });
