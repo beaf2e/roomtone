@@ -1,5 +1,5 @@
 // roomtone — service worker (CACHE replaced by prebuild script)
-const CACHE = "roomtone-20260503044605";
+const CACHE = "roomtone-20260503045313";
 const SHELL = ["/", "/manifest.webmanifest", "/icon.svg"];
 
 self.addEventListener("install", (event) => {

@@ -1,11 +1,15 @@
 "use client";
 
 import { AnimatePresence, motion } from "framer-motion";
-import { X, Trash2 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { X, Trash2, Search, Play, Pause, Loader2 } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 import { useStore } from "@/lib/store";
 import { roomTone, DEFAULT_HUE, DEFAULT_WARMTH } from "@/lib/colors";
 import { formatDateLong } from "@/lib/utils";
+import { searchTracks, bigArtwork, type ItunesTrack } from "@/lib/itunes";
+import { usePlayer } from "@/lib/player";
+
+type Picked = NonNullable<ReturnType<typeof useStore.getState>["rooms"][string]>["song"];
 
 export default function Composer({
   date,
@@ -21,42 +25,108 @@ export default function Composer({
   const remove = useStore((s) => s.remove);
 
   const [line, setLine] = useState("");
-  const [title, setTitle] = useState("");
-  const [artist, setArtist] = useState("");
+  const [query, setQuery] = useState("");
+  const [picked, setPicked] = useState<Picked | undefined>(undefined);
+  const [results, setResults] = useState<ItunesTrack[]>([]);
+  const [searching, setSearching] = useState(false);
   const [hue, setHue] = useState(DEFAULT_HUE);
   const [warmth, setWarmth] = useState(DEFAULT_WARMTH);
+
+  const playing = usePlayer((s) => s.playing);
+  const togglePlay = usePlayer((s) => s.toggle);
+  const stopPlay = usePlayer((s) => s.stop);
 
   // Hydrate fields when the composer opens for a given date
   useEffect(() => {
     if (!open) return;
     setLine(room?.line ?? "");
-    setTitle(room?.song?.title ?? "");
-    setArtist(room?.song?.artist ?? "");
+    setPicked(room?.song);
+    setQuery(
+      room?.song
+        ? [room.song.title, room.song.artist].filter(Boolean).join(" ")
+        : "",
+    );
+    setResults([]);
     setHue(room?.hue ?? DEFAULT_HUE);
     setWarmth(room?.warmth ?? DEFAULT_WARMTH);
   }, [open, date, room]);
 
+  // Stop any playback when the composer closes
+  useEffect(() => {
+    if (!open) stopPlay();
+  }, [open, stopPlay]);
+
+  // Debounced iTunes search whenever the query changes (and no track is locked in)
+  const abortRef = useRef<AbortController | null>(null);
+  useEffect(() => {
+    if (!open) return;
+    const term = query.trim();
+    if (!term || picked) {
+      setResults([]);
+      setSearching(false);
+      return;
+    }
+    abortRef.current?.abort();
+    const ctrl = new AbortController();
+    abortRef.current = ctrl;
+    const t = window.setTimeout(async () => {
+      setSearching(true);
+      try {
+        const r = await searchTracks(term, ctrl.signal);
+        if (!ctrl.signal.aborted) setResults(r);
+      } catch {
+        if (!ctrl.signal.aborted) setResults([]);
+      } finally {
+        if (!ctrl.signal.aborted) setSearching(false);
+      }
+    }, 280);
+    return () => {
+      window.clearTimeout(t);
+      ctrl.abort();
+    };
+  }, [query, open, picked]);
+
   const tone = roomTone(hue, warmth);
 
+  function pick(t: ItunesTrack) {
+    setPicked({
+      title: t.trackName,
+      artist: t.artistName,
+      trackId: t.trackId,
+      previewUrl: t.previewUrl,
+      artworkUrl: bigArtwork(t.artworkUrl100, 600),
+      trackViewUrl: t.trackViewUrl,
+    });
+    setQuery(`${t.trackName} ${t.artistName}`);
+    setResults([]);
+    stopPlay();
+  }
+
+  function clearPick() {
+    stopPlay();
+    setPicked(undefined);
+    setQuery("");
+  }
+
   function save() {
-    const hasContent = line.trim() || title.trim();
+    const hasContent = line.trim() || picked;
     if (!hasContent) {
       onClose();
       return;
     }
     upsert(date, {
       line: line.trim() || undefined,
-      song: title.trim()
-        ? { title: title.trim(), artist: artist.trim() || undefined }
-        : undefined,
+      song: picked,
       hue,
       warmth,
     });
+    stopPlay();
     onClose();
   }
 
   function clearDay() {
     remove(date);
+    stopPlay();
     onClose();
   }
 
@@ -77,7 +147,7 @@ export default function Composer({
             className="glass fixed z-50 rounded-3xl overflow-hidden flex flex-col
               inset-x-3 bottom-3 max-h-[88dvh]
               md:inset-auto md:left-1/2 md:top-1/2 md:-translate-x-1/2 md:-translate-y-1/2
-              md:w-[440px] md:max-h-[80dvh]"
+              md:w-[460px] md:max-h-[82dvh]"
             initial={{ opacity: 0, y: 24, scale: 0.98 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 16, scale: 0.98 }}
@@ -114,22 +184,99 @@ export default function Composer({
                 maxLength={80}
               />
 
-              <div className="mt-6 grid gap-3">
+              <div className="mt-6">
                 <label className="block text-[11px] uppercase tracking-[0.16em] text-[var(--fg-faint)]">
                   오늘의 곡
                 </label>
-                <input
-                  className="input-bare hairline rounded-2xl px-3.5 py-2.5 text-[14px]"
-                  placeholder="곡 제목"
-                  value={title}
-                  onChange={(e) => setTitle(e.target.value)}
-                />
-                <input
-                  className="input-bare hairline rounded-2xl px-3.5 py-2.5 text-[14px]"
-                  placeholder="아티스트 (선택)"
-                  value={artist}
-                  onChange={(e) => setArtist(e.target.value)}
-                />
+
+                {picked ? (
+                  <div className="mt-2 hairline rounded-2xl p-2.5 flex items-center gap-3">
+                    {picked.artworkUrl && (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={picked.artworkUrl}
+                        alt=""
+                        className="w-12 h-12 rounded-lg object-cover"
+                        draggable={false}
+                      />
+                    )}
+                    <div className="flex-1 min-w-0">
+                      <div className="text-[14px] font-semibold tracking-tight truncate">
+                        {picked.title}
+                      </div>
+                      <div className="text-[12px] text-[var(--fg-muted)] truncate">
+                        {picked.artist}
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => void togglePlay(`composer:${date}`, picked.previewUrl)}
+                      disabled={!picked.previewUrl}
+                      aria-label="미리듣기"
+                      className="grid place-items-center w-9 h-9 rounded-full bg-white text-black disabled:opacity-30"
+                    >
+                      {playing === `composer:${date}` ? (
+                        <Pause size={14} />
+                      ) : (
+                        <Play size={14} className="translate-x-[1px]" />
+                      )}
+                    </button>
+                    <button
+                      onClick={clearPick}
+                      aria-label="곡 지우기"
+                      className="btn-ghost p-1.5 rounded-full"
+                    >
+                      <X size={14} />
+                    </button>
+                  </div>
+                ) : (
+                  <div className="mt-2 hairline rounded-2xl px-3 py-2 flex items-center gap-2">
+                    {searching ? (
+                      <Loader2 size={14} className="opacity-60 animate-spin" />
+                    ) : (
+                      <Search size={14} className="opacity-60" />
+                    )}
+                    <input
+                      className="input-bare text-[14px]"
+                      placeholder="곡 제목 + 아티스트로 검색"
+                      value={query}
+                      onChange={(e) => setQuery(e.target.value)}
+                    />
+                  </div>
+                )}
+
+                {!picked && results.length > 0 && (
+                  <ul className="mt-2 max-h-[260px] overflow-y-auto rounded-2xl hairline divide-y divide-white/5">
+                    {results.map((t) => (
+                      <li key={t.trackId}>
+                        <button
+                          onClick={() => pick(t)}
+                          className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-white/[0.04] transition text-left"
+                        >
+                          {t.artworkUrl100 && (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img
+                              src={t.artworkUrl100}
+                              alt=""
+                              className="w-10 h-10 rounded-md object-cover shrink-0"
+                              draggable={false}
+                            />
+                          )}
+                          <div className="flex-1 min-w-0">
+                            <div className="text-[13.5px] font-medium tracking-tight truncate">
+                              {t.trackName}
+                            </div>
+                            <div className="text-[11.5px] text-[var(--fg-muted)] truncate">
+                              {t.artistName}
+                              {t.collectionName ? (
+                                <span className="text-[var(--fg-faint)]"> · {t.collectionName}</span>
+                              ) : null}
+                            </div>
+                          </div>
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
               </div>
 
               <div className="mt-6">

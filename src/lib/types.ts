@@ -3,10 +3,18 @@ export type Room = {
   date: string;
   /** A single line — the title of the day. Optional but encouraged. */
   line?: string;
-  /** The day's track. Free-form for MVP; later: Spotify track id. */
+  /** The day's track. */
   song?: {
     title: string;
     artist?: string;
+    /** Apple/iTunes track id, when picked from search. */
+    trackId?: number;
+    /** 30s m4a preview URL — playable in <audio>. */
+    previewUrl?: string;
+    /** Square artwork URL (highest the API returns, 600x600). */
+    artworkUrl?: string;
+    /** Deep link to the song on Apple Music (for "전체 듣기" exit). */
+    trackViewUrl?: string;
   };
   /** Hue 0–360 used to tint the room. Picked by the user (or auto from song). */
   hue: number;
