@@ -17,8 +17,8 @@ export type Room = {
     trackViewUrl?: string;
     /** Seconds offset within the 30s preview to start playback at. 0..~25. */
     startAt?: number;
-    /** Spotify track id (extracted from open.spotify.com URL) for full-track embed. */
-    spotifyTrackId?: string;
+    /** YouTube video id (extracted from any youtube/youtu.be URL) for full-track embed. */
+    youtubeId?: string;
   };
   /** Hue 0–360 used to tint the room. Picked by the user (or auto from song). */
   hue: number;

@@ -6,7 +6,7 @@ import { roomTone, DEFAULT_HUE, DEFAULT_WARMTH } from "@/lib/colors";
 import { formatDateLong, isToday } from "@/lib/utils";
 import { PLACEHOLDER_LINE } from "@/lib/store";
 import { usePlayer, fmtTime } from "@/lib/player";
-import { spotifyEmbedUrl } from "@/lib/spotify";
+import { youtubeEmbedUrl } from "@/lib/youtube";
 
 export default function Room({
   date,
@@ -29,8 +29,8 @@ export default function Room({
   const currentTime = usePlayer((s) => s.currentTime);
   const duration = usePlayer((s) => s.duration);
   const toggle = usePlayer((s) => s.toggle);
-  const hasSpotify = Boolean(room?.song?.spotifyTrackId);
-  const canPlay = Boolean(room?.song?.previewUrl) && !hasSpotify;
+  const hasYoutube = Boolean(room?.song?.youtubeId);
+  const canPlay = Boolean(room?.song?.previewUrl) && !hasYoutube;
 
   function onDiscClick(e: React.MouseEvent) {
     if (!canPlay) return;
@@ -186,27 +186,25 @@ export default function Room({
           </div>
         )}
 
-        {hasSpotify && room?.song?.spotifyTrackId && (
+        {hasYoutube && room?.song?.youtubeId && (
           <div
-            className="mt-5 mx-auto rounded-2xl overflow-hidden hairline"
-            style={{ maxWidth: 380 }}
+            className="mt-5 mx-auto rounded-2xl overflow-hidden hairline relative"
+            style={{ maxWidth: 380, aspectRatio: "16 / 9" }}
             onClick={(e) => e.stopPropagation()}
           >
             <iframe
-              key={room.song.spotifyTrackId}
-              src={spotifyEmbedUrl(room.song.spotifyTrackId)}
-              width="100%"
-              height="80"
+              key={room.song.youtubeId}
+              src={youtubeEmbedUrl(room.song.youtubeId)}
+              className="absolute inset-0 w-full h-full"
               frameBorder={0}
-              allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
+              allow="autoplay; encrypted-media; picture-in-picture; fullscreen"
               loading="lazy"
-              title="Spotify player"
-              style={{ display: "block" }}
+              title="YouTube player"
             />
           </div>
         )}
 
-        {room?.song?.trackViewUrl && !hasSpotify && (
+        {room?.song?.trackViewUrl && !hasYoutube && (
           <a
             href={room.song.trackViewUrl}
             target="_blank"

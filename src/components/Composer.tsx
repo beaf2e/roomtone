@@ -9,7 +9,7 @@ import { formatDateLong } from "@/lib/utils";
 import { searchTracks, bigArtwork, type ItunesTrack } from "@/lib/itunes";
 import { usePlayer } from "@/lib/player";
 import { toneFromImage } from "@/lib/dominant-color";
-import { extractSpotifyTrackId, spotifySearchUrl } from "@/lib/spotify";
+import { extractYoutubeId, youtubeSearchUrl } from "@/lib/youtube";
 
 type Picked = NonNullable<ReturnType<typeof useStore.getState>["rooms"][string]>["song"];
 
@@ -34,7 +34,7 @@ export default function Composer({
   const [hue, setHue] = useState(DEFAULT_HUE);
   const [warmth, setWarmth] = useState(DEFAULT_WARMTH);
   const [toneAuto, setToneAuto] = useState(false);
-  const [spotifyInput, setSpotifyInput] = useState("");
+  const [ytInput, setYtInput] = useState("");
 
   const playing = usePlayer((s) => s.playing);
   const togglePlay = usePlayer((s) => s.toggle);
@@ -54,10 +54,8 @@ export default function Composer({
     setHue(room?.hue ?? DEFAULT_HUE);
     setWarmth(room?.warmth ?? DEFAULT_WARMTH);
     setToneAuto(false);
-    setSpotifyInput(
-      room?.song?.spotifyTrackId
-        ? `https://open.spotify.com/track/${room.song.spotifyTrackId}`
-        : "",
+    setYtInput(
+      room?.song?.youtubeId ? `https://youtu.be/${room.song.youtubeId}` : "",
     );
   }, [open, date, room]);
 
@@ -131,11 +129,11 @@ export default function Composer({
     setPicked({ ...picked, startAt: Math.max(0, Math.min(28, s)) });
   }
 
-  function commitSpotifyUrl(value: string) {
-    setSpotifyInput(value);
+  function commitYoutubeUrl(value: string) {
+    setYtInput(value);
     if (!picked) return;
-    const id = extractSpotifyTrackId(value);
-    setPicked({ ...picked, spotifyTrackId: id ?? undefined });
+    const id = extractYoutubeId(value);
+    setPicked({ ...picked, youtubeId: id ?? undefined });
   }
 
   function clearPick() {
@@ -290,40 +288,40 @@ export default function Composer({
                   <div className="mt-3 flex items-center gap-2">
                     <input
                       className="input-bare hairline rounded-2xl px-3 py-2 text-[12.5px] flex-1"
-                      placeholder="Spotify 곡 URL 붙여넣기 (선택)"
-                      value={spotifyInput}
-                      onChange={(e) => commitSpotifyUrl(e.target.value)}
+                      placeholder="YouTube 영상 URL 붙여넣기 (풀곡 재생)"
+                      value={ytInput}
+                      onChange={(e) => commitYoutubeUrl(e.target.value)}
                       onPaste={(e) => {
                         const v = e.clipboardData.getData("text");
                         if (v) {
                           e.preventDefault();
-                          commitSpotifyUrl(v);
+                          commitYoutubeUrl(v);
                         }
                       }}
                     />
                     <a
-                      href={spotifySearchUrl(`${picked.title} ${picked.artist ?? ""}`.trim())}
+                      href={youtubeSearchUrl(`${picked.title} ${picked.artist ?? ""}`.trim())}
                       target="_blank"
                       rel="noreferrer"
-                      title="Spotify에서 검색하고 URL 복사"
+                      title="YouTube에서 검색하고 URL 복사"
                       className="btn-ghost p-1.5 rounded-full"
                     >
                       <ExternalLink size={14} />
                     </a>
                   </div>
                 )}
-                {picked && spotifyInput && !picked.spotifyTrackId && (
+                {picked && ytInput && !picked.youtubeId && (
                   <div className="mt-1 text-[10.5px] text-[var(--fg-faint)]">
-                    Spotify 곡 URL 형식이 아니에요 (open.spotify.com/track/…)
+                    YouTube URL 형식이 아니에요 (youtube.com/… 또는 youtu.be/…)
                   </div>
                 )}
-                {picked && picked.spotifyTrackId && (
+                {picked && picked.youtubeId && (
                   <div className="mt-1 text-[10.5px] text-[var(--fg-faint)]">
-                    Spotify 풀곡 임베드가 방에 표시돼요
+                    이 영상이 방에 풀곡으로 임베드돼요
                   </div>
                 )}
 
-                {picked && picked.previewUrl && !picked.spotifyTrackId && (
+                {picked && picked.previewUrl && !picked.youtubeId && (
                   <div className="mt-3">
                     <div className="flex items-center justify-between text-[11px] uppercase tracking-[0.16em] text-[var(--fg-faint)]">
                       <span>시작 지점</span>
