@@ -1,13 +1,15 @@
 "use client";
 
 import { AnimatePresence, motion } from "framer-motion";
-import { X, Trash2, Search, Play, Pause, Loader2 } from "lucide-react";
+import { X, Trash2, Search, Play, Pause, Loader2, Wand2, ExternalLink } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { useStore } from "@/lib/store";
 import { roomTone, DEFAULT_HUE, DEFAULT_WARMTH } from "@/lib/colors";
 import { formatDateLong } from "@/lib/utils";
 import { searchTracks, bigArtwork, type ItunesTrack } from "@/lib/itunes";
 import { usePlayer } from "@/lib/player";
+import { toneFromImage } from "@/lib/dominant-color";
+import { extractSpotifyTrackId, spotifySearchUrl } from "@/lib/spotify";
 
 type Picked = NonNullable<ReturnType<typeof useStore.getState>["rooms"][string]>["song"];
 
@@ -31,6 +33,8 @@ export default function Composer({
   const [searching, setSearching] = useState(false);
   const [hue, setHue] = useState(DEFAULT_HUE);
   const [warmth, setWarmth] = useState(DEFAULT_WARMTH);
+  const [toneAuto, setToneAuto] = useState(false);
+  const [spotifyInput, setSpotifyInput] = useState("");
 
   const playing = usePlayer((s) => s.playing);
   const togglePlay = usePlayer((s) => s.toggle);
@@ -49,6 +53,12 @@ export default function Composer({
     setResults([]);
     setHue(room?.hue ?? DEFAULT_HUE);
     setWarmth(room?.warmth ?? DEFAULT_WARMTH);
+    setToneAuto(false);
+    setSpotifyInput(
+      room?.song?.spotifyTrackId
+        ? `https://open.spotify.com/track/${room.song.spotifyTrackId}`
+        : "",
+    );
   }, [open, date, room]);
 
   // Stop any playback when the composer closes
@@ -89,23 +99,43 @@ export default function Composer({
   const tone = roomTone(hue, warmth);
 
   function pick(t: ItunesTrack) {
+    const artwork = bigArtwork(t.artworkUrl100, 600);
     setPicked({
       title: t.trackName,
       artist: t.artistName,
       trackId: t.trackId,
       previewUrl: t.previewUrl,
-      artworkUrl: bigArtwork(t.artworkUrl100, 600),
+      artworkUrl: artwork,
       trackViewUrl: t.trackViewUrl,
       startAt: 0,
     });
     setQuery(`${t.trackName} ${t.artistName}`);
     setResults([]);
     stopPlay();
+    // Auto-tone from album art (only if user hasn't manually customized yet)
+    if (artwork) void applyToneFromArt(artwork, /*force*/ false);
+  }
+
+  async function applyToneFromArt(url: string, force: boolean) {
+    const t = await toneFromImage(url);
+    if (!t) return;
+    if (force || !toneAuto) {
+      setHue(t.hue);
+      setWarmth(t.warmth);
+      setToneAuto(true);
+    }
   }
 
   function setStartAt(s: number) {
     if (!picked) return;
     setPicked({ ...picked, startAt: Math.max(0, Math.min(28, s)) });
+  }
+
+  function commitSpotifyUrl(value: string) {
+    setSpotifyInput(value);
+    if (!picked) return;
+    const id = extractSpotifyTrackId(value);
+    setPicked({ ...picked, spotifyTrackId: id ?? undefined });
   }
 
   function clearPick() {
@@ -256,7 +286,44 @@ export default function Composer({
                   </div>
                 )}
 
-                {picked && picked.previewUrl && (
+                {picked && (
+                  <div className="mt-3 flex items-center gap-2">
+                    <input
+                      className="input-bare hairline rounded-2xl px-3 py-2 text-[12.5px] flex-1"
+                      placeholder="Spotify 곡 URL 붙여넣기 (선택)"
+                      value={spotifyInput}
+                      onChange={(e) => commitSpotifyUrl(e.target.value)}
+                      onPaste={(e) => {
+                        const v = e.clipboardData.getData("text");
+                        if (v) {
+                          e.preventDefault();
+                          commitSpotifyUrl(v);
+                        }
+                      }}
+                    />
+                    <a
+                      href={spotifySearchUrl(`${picked.title} ${picked.artist ?? ""}`.trim())}
+                      target="_blank"
+                      rel="noreferrer"
+                      title="Spotify에서 검색하고 URL 복사"
+                      className="btn-ghost p-1.5 rounded-full"
+                    >
+                      <ExternalLink size={14} />
+                    </a>
+                  </div>
+                )}
+                {picked && spotifyInput && !picked.spotifyTrackId && (
+                  <div className="mt-1 text-[10.5px] text-[var(--fg-faint)]">
+                    Spotify 곡 URL 형식이 아니에요 (open.spotify.com/track/…)
+                  </div>
+                )}
+                {picked && picked.spotifyTrackId && (
+                  <div className="mt-1 text-[10.5px] text-[var(--fg-faint)]">
+                    Spotify 풀곡 임베드가 방에 표시돼요
+                  </div>
+                )}
+
+                {picked && picked.previewUrl && !picked.spotifyTrackId && (
                   <div className="mt-3">
                     <div className="flex items-center justify-between text-[11px] uppercase tracking-[0.16em] text-[var(--fg-faint)]">
                       <span>시작 지점</span>
@@ -348,25 +415,40 @@ export default function Composer({
               </div>
 
               <div className="mt-6">
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between gap-2">
                   <label className="text-[11px] uppercase tracking-[0.16em] text-[var(--fg-faint)]">
                     톤
                   </label>
-                  <div
-                    className="w-7 h-7 rounded-full"
-                    style={{
-                      background: `conic-gradient(from 200deg, ${tone.glowA}, ${tone.glowB}, ${tone.glowA})`,
-                      boxShadow: "inset 0 0 0 1px rgba(255,255,255,0.12)",
-                    }}
-                    aria-hidden
-                  />
+                  <div className="flex items-center gap-2">
+                    {picked?.artworkUrl && (
+                      <button
+                        onClick={() => void applyToneFromArt(picked.artworkUrl!, true)}
+                        className="btn-ghost flex items-center gap-1 text-[11px] uppercase tracking-[0.14em]"
+                        title="앨범 색에서 자동 추출"
+                      >
+                        <Wand2 size={12} />
+                        앨범 색
+                      </button>
+                    )}
+                    <div
+                      className="w-7 h-7 rounded-full"
+                      style={{
+                        background: `conic-gradient(from 200deg, ${tone.glowA}, ${tone.glowB}, ${tone.glowA})`,
+                        boxShadow: "inset 0 0 0 1px rgba(255,255,255,0.12)",
+                      }}
+                      aria-hidden
+                    />
+                  </div>
                 </div>
                 <input
                   type="range"
                   min={0}
                   max={359}
                   value={hue}
-                  onChange={(e) => setHue(Number(e.target.value))}
+                  onChange={(e) => {
+                    setHue(Number(e.target.value));
+                    setToneAuto(false);
+                  }}
                   className="mt-3 w-full accent-white"
                   style={{
                     background:
@@ -386,7 +468,10 @@ export default function Composer({
                   min={0}
                   max={100}
                   value={Math.round(warmth * 100)}
-                  onChange={(e) => setWarmth(Number(e.target.value) / 100)}
+                  onChange={(e) => {
+                    setWarmth(Number(e.target.value) / 100);
+                    setToneAuto(false);
+                  }}
                   className="mt-1 w-full accent-white"
                 />
               </div>

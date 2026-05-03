@@ -19,6 +19,10 @@ type State = {
   playing: string | null;
   /** 0..1 progress for the playing track (driven by timeupdate). */
   progress: number;
+  /** Current playback position in seconds. */
+  currentTime: number;
+  /** Track duration in seconds (≈ 30 for iTunes previews). */
+  duration: number;
   toggle: (date: string, src: string | undefined, startAt?: number) => Promise<void>;
   stop: () => void;
 };
@@ -26,6 +30,8 @@ type State = {
 export const usePlayer = create<State>((set, get) => ({
   playing: null,
   progress: 0,
+  currentTime: 0,
+  duration: 0,
   toggle: async (date, src, startAt = 0) => {
     if (!src) return;
     const a = audio();
@@ -48,10 +54,14 @@ export const usePlayer = create<State>((set, get) => ({
     a.addEventListener("loadedmetadata", trySeek, { once: true });
     const onTime = () => {
       const p = a.duration > 0 ? a.currentTime / a.duration : 0;
-      set({ progress: p });
+      set({
+        progress: p,
+        currentTime: a.currentTime,
+        duration: isFinite(a.duration) ? a.duration : 0,
+      });
     };
     const onEnd = () => {
-      set({ playing: null, progress: 0 });
+      set({ playing: null, progress: 0, currentTime: 0 });
       a.removeEventListener("timeupdate", onTime);
       a.removeEventListener("ended", onEnd);
     };
@@ -59,13 +69,20 @@ export const usePlayer = create<State>((set, get) => ({
     a.addEventListener("ended", onEnd);
     try {
       await a.play();
-      set({ playing: date, progress: 0 });
+      set({ playing: date, progress: 0, currentTime: seekTo, duration: isFinite(a.duration) ? a.duration : 0 });
     } catch {
       set({ playing: null, progress: 0 });
     }
   },
   stop: () => {
     if (el) el.pause();
-    set({ playing: null, progress: 0 });
+    set({ playing: null, progress: 0, currentTime: 0 });
   },
 }));
+
+export function fmtTime(sec: number): string {
+  if (!isFinite(sec) || sec < 0) sec = 0;
+  const m = Math.floor(sec / 60);
+  const s = Math.floor(sec % 60);
+  return `${m}:${String(s).padStart(2, "0")}`;
+}

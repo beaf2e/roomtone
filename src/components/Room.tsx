@@ -5,7 +5,8 @@ import type { Room as RoomT } from "@/lib/types";
 import { roomTone, DEFAULT_HUE, DEFAULT_WARMTH } from "@/lib/colors";
 import { formatDateLong, isToday } from "@/lib/utils";
 import { PLACEHOLDER_LINE } from "@/lib/store";
-import { usePlayer } from "@/lib/player";
+import { usePlayer, fmtTime } from "@/lib/player";
+import { spotifyEmbedUrl } from "@/lib/spotify";
 
 export default function Room({
   date,
@@ -25,8 +26,11 @@ export default function Room({
 
   const playing = usePlayer((s) => s.playing) === date;
   const progress = usePlayer((s) => s.progress);
+  const currentTime = usePlayer((s) => s.currentTime);
+  const duration = usePlayer((s) => s.duration);
   const toggle = usePlayer((s) => s.toggle);
-  const canPlay = Boolean(room?.song?.previewUrl);
+  const hasSpotify = Boolean(room?.song?.spotifyTrackId);
+  const canPlay = Boolean(room?.song?.previewUrl) && !hasSpotify;
 
   function onDiscClick(e: React.MouseEvent) {
     if (!canPlay) return;
@@ -174,7 +178,35 @@ export default function Room({
           )}
         </div>
 
-        {room?.song?.trackViewUrl && (
+        {canPlay && (
+          <div className="mt-1.5 text-[11.5px] text-[var(--fg-faint)] tabular-nums">
+            {fmtTime(playing ? currentTime : (room?.song?.startAt ?? 0))}
+            <span className="opacity-50"> / </span>
+            {fmtTime(playing && duration > 0 ? duration : 30)}
+          </div>
+        )}
+
+        {hasSpotify && room?.song?.spotifyTrackId && (
+          <div
+            className="mt-5 mx-auto rounded-2xl overflow-hidden hairline"
+            style={{ maxWidth: 380 }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <iframe
+              key={room.song.spotifyTrackId}
+              src={spotifyEmbedUrl(room.song.spotifyTrackId)}
+              width="100%"
+              height="80"
+              frameBorder={0}
+              allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
+              loading="lazy"
+              title="Spotify player"
+              style={{ display: "block" }}
+            />
+          </div>
+        )}
+
+        {room?.song?.trackViewUrl && !hasSpotify && (
           <a
             href={room.song.trackViewUrl}
             target="_blank"
