@@ -1,17 +1,13 @@
 "use client";
 
 import { AnimatePresence, motion } from "framer-motion";
-import { X, Trash2, Search, Play, Pause, Loader2, Wand2, ExternalLink } from "lucide-react";
+import { X, Trash2, ImagePlus, Wand2, Loader2 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { useStore } from "@/lib/store";
 import { roomTone, DEFAULT_HUE, DEFAULT_WARMTH } from "@/lib/colors";
 import { formatDateLong } from "@/lib/utils";
-import { searchTracks, bigArtwork, type ItunesTrack } from "@/lib/itunes";
-import { usePlayer } from "@/lib/player";
 import { toneFromImage } from "@/lib/dominant-color";
-import { extractYoutubeId, youtubeSearchUrl } from "@/lib/youtube";
-
-type Picked = NonNullable<ReturnType<typeof useStore.getState>["rooms"][string]>["song"];
+import { fileToResizedPhoto } from "@/lib/photo";
 
 export default function Composer({
   date,
@@ -27,92 +23,26 @@ export default function Composer({
   const remove = useStore((s) => s.remove);
 
   const [line, setLine] = useState("");
-  const [query, setQuery] = useState("");
-  const [picked, setPicked] = useState<Picked | undefined>(undefined);
-  const [results, setResults] = useState<ItunesTrack[]>([]);
-  const [searching, setSearching] = useState(false);
+  const [photo, setPhoto] = useState<{ dataUrl: string; width: number; height: number } | undefined>(undefined);
   const [hue, setHue] = useState(DEFAULT_HUE);
   const [warmth, setWarmth] = useState(DEFAULT_WARMTH);
   const [toneAuto, setToneAuto] = useState(false);
-  const [ytInput, setYtInput] = useState("");
-
-  const playing = usePlayer((s) => s.playing);
-  const togglePlay = usePlayer((s) => s.toggle);
-  const stopPlay = usePlayer((s) => s.stop);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const fileRef = useRef<HTMLInputElement | null>(null);
 
   // Hydrate fields when the composer opens for a given date
   useEffect(() => {
     if (!open) return;
     setLine(room?.line ?? "");
-    setPicked(room?.song);
-    setQuery(
-      room?.song
-        ? [room.song.title, room.song.artist].filter(Boolean).join(" ")
-        : "",
-    );
-    setResults([]);
+    setPhoto(room?.photo);
     setHue(room?.hue ?? DEFAULT_HUE);
     setWarmth(room?.warmth ?? DEFAULT_WARMTH);
     setToneAuto(false);
-    setYtInput(
-      room?.song?.youtubeId ? `https://youtu.be/${room.song.youtubeId}` : "",
-    );
+    setError(null);
   }, [open, date, room]);
 
-  // Stop any playback when the composer closes
-  useEffect(() => {
-    if (!open) stopPlay();
-  }, [open, stopPlay]);
-
-  // Debounced iTunes search whenever the query changes (and no track is locked in)
-  const abortRef = useRef<AbortController | null>(null);
-  useEffect(() => {
-    if (!open) return;
-    const term = query.trim();
-    if (!term || picked) {
-      setResults([]);
-      setSearching(false);
-      return;
-    }
-    abortRef.current?.abort();
-    const ctrl = new AbortController();
-    abortRef.current = ctrl;
-    const t = window.setTimeout(async () => {
-      setSearching(true);
-      try {
-        const r = await searchTracks(term, ctrl.signal);
-        if (!ctrl.signal.aborted) setResults(r);
-      } catch {
-        if (!ctrl.signal.aborted) setResults([]);
-      } finally {
-        if (!ctrl.signal.aborted) setSearching(false);
-      }
-    }, 280);
-    return () => {
-      window.clearTimeout(t);
-      ctrl.abort();
-    };
-  }, [query, open, picked]);
-
   const tone = roomTone(hue, warmth);
-
-  function pick(t: ItunesTrack) {
-    const artwork = bigArtwork(t.artworkUrl100, 600);
-    setPicked({
-      title: t.trackName,
-      artist: t.artistName,
-      trackId: t.trackId,
-      previewUrl: t.previewUrl,
-      artworkUrl: artwork,
-      trackViewUrl: t.trackViewUrl,
-      startAt: 0,
-    });
-    setQuery(`${t.trackName} ${t.artistName}`);
-    setResults([]);
-    stopPlay();
-    // Auto-tone from album art (only if user hasn't manually customized yet)
-    if (artwork) void applyToneFromArt(artwork, /*force*/ false);
-  }
 
   async function applyToneFromArt(url: string, force: boolean) {
     const t = await toneFromImage(url);
@@ -124,43 +54,42 @@ export default function Composer({
     }
   }
 
-  function setStartAt(s: number) {
-    if (!picked) return;
-    setPicked({ ...picked, startAt: Math.max(0, Math.min(28, s)) });
+  async function onPickFile(file: File) {
+    setError(null);
+    setBusy(true);
+    try {
+      const p = await fileToResizedPhoto(file);
+      setPhoto(p);
+      // Auto-tone from the photo (force, since the user just changed photo)
+      void applyToneFromArt(p.dataUrl, true);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "사진 처리 실패");
+    } finally {
+      setBusy(false);
+    }
   }
 
-  function commitYoutubeUrl(value: string) {
-    setYtInput(value);
-    if (!picked) return;
-    const id = extractYoutubeId(value);
-    setPicked({ ...picked, youtubeId: id ?? undefined });
-  }
-
-  function clearPick() {
-    stopPlay();
-    setPicked(undefined);
-    setQuery("");
+  function clearPhoto() {
+    setPhoto(undefined);
   }
 
   function save() {
-    const hasContent = line.trim() || picked;
+    const hasContent = line.trim() || photo;
     if (!hasContent) {
       onClose();
       return;
     }
     upsert(date, {
       line: line.trim() || undefined,
-      song: picked,
+      photo,
       hue,
       warmth,
     });
-    stopPlay();
     onClose();
   }
 
   function clearDay() {
     remove(date);
-    stopPlay();
     onClose();
   }
 
@@ -220,195 +149,68 @@ export default function Composer({
 
               <div className="mt-6">
                 <label className="block text-[11px] uppercase tracking-[0.16em] text-[var(--fg-faint)]">
-                  오늘의 곡
+                  오늘의 사진
                 </label>
 
-                {picked ? (
-                  <div className="mt-2 hairline rounded-2xl p-2.5 flex items-center gap-3">
-                    {picked.artworkUrl && (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img
-                        src={picked.artworkUrl}
-                        alt=""
-                        className="w-12 h-12 rounded-lg object-cover"
-                        draggable={false}
-                      />
-                    )}
-                    <div className="flex-1 min-w-0">
-                      <div className="text-[14px] font-semibold tracking-tight truncate">
-                        {picked.title}
-                      </div>
-                      <div className="text-[12px] text-[var(--fg-muted)] truncate">
-                        {picked.artist}
-                      </div>
+                {photo ? (
+                  <div className="mt-2 relative rounded-2xl overflow-hidden hairline">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={photo.dataUrl}
+                      alt=""
+                      className="block w-full max-h-[280px] object-cover"
+                      draggable={false}
+                    />
+                    <div className="absolute top-2 right-2 flex items-center gap-1.5">
+                      <button
+                        onClick={() => fileRef.current?.click()}
+                        className="grid place-items-center w-8 h-8 rounded-full bg-black/55 backdrop-blur text-white"
+                        aria-label="사진 바꾸기"
+                        title="사진 바꾸기"
+                      >
+                        <ImagePlus size={14} />
+                      </button>
+                      <button
+                        onClick={clearPhoto}
+                        className="grid place-items-center w-8 h-8 rounded-full bg-black/55 backdrop-blur text-white"
+                        aria-label="사진 지우기"
+                        title="사진 지우기"
+                      >
+                        <X size={14} />
+                      </button>
                     </div>
-                    <button
-                      onClick={() =>
-                        void togglePlay(
-                          `composer:${date}`,
-                          picked.previewUrl,
-                          picked.startAt ?? 0,
-                        )
-                      }
-                      disabled={!picked.previewUrl}
-                      aria-label="미리듣기"
-                      className="grid place-items-center w-9 h-9 rounded-full bg-white text-black disabled:opacity-30"
-                    >
-                      {playing === `composer:${date}` ? (
-                        <Pause size={14} />
-                      ) : (
-                        <Play size={14} className="translate-x-[1px]" />
-                      )}
-                    </button>
-                    <button
-                      onClick={clearPick}
-                      aria-label="곡 지우기"
-                      className="btn-ghost p-1.5 rounded-full"
-                    >
-                      <X size={14} />
-                    </button>
                   </div>
                 ) : (
-                  <div className="mt-2 hairline rounded-2xl px-3 py-2 flex items-center gap-2">
-                    {searching ? (
-                      <Loader2 size={14} className="opacity-60 animate-spin" />
+                  <button
+                    onClick={() => fileRef.current?.click()}
+                    disabled={busy}
+                    className="mt-2 w-full hairline rounded-2xl py-8 flex flex-col items-center justify-center gap-2 text-[var(--fg-muted)] hover:bg-white/5 transition disabled:opacity-50"
+                  >
+                    {busy ? (
+                      <Loader2 size={18} className="animate-spin" />
                     ) : (
-                      <Search size={14} className="opacity-60" />
+                      <ImagePlus size={18} className="opacity-80" />
                     )}
-                    <input
-                      className="input-bare text-[14px]"
-                      placeholder="곡 제목 + 아티스트로 검색"
-                      value={query}
-                      onChange={(e) => setQuery(e.target.value)}
-                    />
-                  </div>
+                    <span className="text-[12.5px]">
+                      {busy ? "처리 중…" : "사진 추가"}
+                    </span>
+                  </button>
                 )}
 
-                {picked && (
-                  <div className="mt-3 flex items-center gap-2">
-                    <input
-                      className="input-bare hairline rounded-2xl px-3 py-2 text-[12.5px] flex-1"
-                      placeholder="YouTube 영상 URL 붙여넣기 (풀곡 재생)"
-                      value={ytInput}
-                      onChange={(e) => commitYoutubeUrl(e.target.value)}
-                      onPaste={(e) => {
-                        const v = e.clipboardData.getData("text");
-                        if (v) {
-                          e.preventDefault();
-                          commitYoutubeUrl(v);
-                        }
-                      }}
-                    />
-                    <a
-                      href={youtubeSearchUrl(`${picked.title} ${picked.artist ?? ""}`.trim())}
-                      target="_blank"
-                      rel="noreferrer"
-                      title="YouTube에서 검색하고 URL 복사"
-                      className="btn-ghost p-1.5 rounded-full"
-                    >
-                      <ExternalLink size={14} />
-                    </a>
-                  </div>
-                )}
-                {picked && ytInput && !picked.youtubeId && (
-                  <div className="mt-1 text-[10.5px] text-[var(--fg-faint)]">
-                    YouTube URL 형식이 아니에요 (youtube.com/… 또는 youtu.be/…)
-                  </div>
-                )}
-                {picked && picked.youtubeId && (
-                  <div className="mt-1 text-[10.5px] text-[var(--fg-faint)]">
-                    이 영상이 방에 풀곡으로 임베드돼요
-                  </div>
-                )}
+                <input
+                  ref={fileRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={(e) => {
+                    const f = e.target.files?.[0];
+                    if (f) void onPickFile(f);
+                    e.currentTarget.value = "";
+                  }}
+                />
 
-                {picked && picked.previewUrl && !picked.youtubeId && (
-                  <div className="mt-3">
-                    <div className="flex items-center justify-between text-[11px] uppercase tracking-[0.16em] text-[var(--fg-faint)]">
-                      <span>시작 지점</span>
-                      <span className="tabular-nums">
-                        {(picked.startAt ?? 0).toFixed(1)}초부터
-                      </span>
-                    </div>
-                    <div className="relative mt-2">
-                      <div
-                        className="h-7 rounded-lg overflow-hidden hairline relative"
-                        style={{
-                          background:
-                            "linear-gradient(90deg, rgba(255,255,255,0.06), rgba(255,255,255,0.18), rgba(255,255,255,0.06))",
-                        }}
-                      >
-                        {/* 30s waveform-ish shimmer (decorative) */}
-                        <div className="absolute inset-0 flex items-center gap-[2px] px-1 opacity-60">
-                          {Array.from({ length: 60 }).map((_, i) => {
-                            const h = 30 + (Math.sin(i * 1.7) * 0.5 + 0.5) * 60;
-                            return (
-                              <span
-                                key={i}
-                                className="block w-[3px] rounded-full bg-white/35"
-                                style={{ height: `${h}%` }}
-                              />
-                            );
-                          })}
-                        </div>
-                        {/* Trim marker */}
-                        <div
-                          className="absolute top-0 bottom-0 w-[3px] bg-white shadow-[0_0_0_1px_rgba(0,0,0,0.4)] rounded-full"
-                          style={{
-                            left: `${((picked.startAt ?? 0) / 30) * 100}%`,
-                            transform: "translateX(-50%)",
-                          }}
-                          aria-hidden
-                        />
-                      </div>
-                      <input
-                        type="range"
-                        min={0}
-                        max={28}
-                        step={0.1}
-                        value={picked.startAt ?? 0}
-                        onChange={(e) => setStartAt(Number(e.target.value))}
-                        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                        aria-label="재생 시작 지점"
-                      />
-                    </div>
-                    <div className="mt-2 text-[11px] text-[var(--fg-faint)]">
-                      이 지점부터 재생돼요. 인스타처럼 좋아하는 부분으로 맞춰보세요.
-                    </div>
-                  </div>
-                )}
-
-                {!picked && results.length > 0 && (
-                  <ul className="mt-2 max-h-[260px] overflow-y-auto rounded-2xl hairline divide-y divide-white/5">
-                    {results.map((t) => (
-                      <li key={t.trackId}>
-                        <button
-                          onClick={() => pick(t)}
-                          className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-white/[0.04] transition text-left"
-                        >
-                          {t.artworkUrl100 && (
-                            // eslint-disable-next-line @next/next/no-img-element
-                            <img
-                              src={t.artworkUrl100}
-                              alt=""
-                              className="w-10 h-10 rounded-md object-cover shrink-0"
-                              draggable={false}
-                            />
-                          )}
-                          <div className="flex-1 min-w-0">
-                            <div className="text-[13.5px] font-medium tracking-tight truncate">
-                              {t.trackName}
-                            </div>
-                            <div className="text-[11.5px] text-[var(--fg-muted)] truncate">
-                              {t.artistName}
-                              {t.collectionName ? (
-                                <span className="text-[var(--fg-faint)]"> · {t.collectionName}</span>
-                              ) : null}
-                            </div>
-                          </div>
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
+                {error && (
+                  <div className="mt-2 text-[11px] text-red-300/85">{error}</div>
                 )}
               </div>
 
@@ -418,14 +220,14 @@ export default function Composer({
                     톤
                   </label>
                   <div className="flex items-center gap-2">
-                    {picked?.artworkUrl && (
+                    {photo && (
                       <button
-                        onClick={() => void applyToneFromArt(picked.artworkUrl!, true)}
+                        onClick={() => void applyToneFromArt(photo.dataUrl, true)}
                         className="btn-ghost flex items-center gap-1 text-[11px] uppercase tracking-[0.14em]"
-                        title="앨범 색에서 자동 추출"
+                        title="사진 색에서 자동 추출"
                       >
                         <Wand2 size={12} />
-                        앨범 색
+                        사진 색
                       </button>
                     )}
                     <div

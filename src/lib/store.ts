@@ -46,7 +46,8 @@ export const useStore = create<State>()(
       },
     }),
     {
-      name: "roomtone.v1",
+      // bumped to v2 when "song" → "photo" rewrite landed; old entries reset
+      name: "roomtone.v2",
       storage: createJSONStorage(() => localStorage),
       partialize: (s) => ({ rooms: s.rooms }),
     },

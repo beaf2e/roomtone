@@ -5,8 +5,8 @@ const SITE_URL = "https://roomtone.pages.dev";
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
-  title: "roomtone — 매일 한 곡, 한 줄, 하나의 방",
-  description: "하루를 노래 한 곡과 문장 하나로 봉인하세요. 복도를 걸으면 매일이 방으로 남습니다.",
+  title: "roomtone — 매일 한 장, 한 줄, 하나의 방",
+  description: "하루를 사진 한 장과 문장 하나로 봉인하세요. 복도를 걸으면 매일이 방으로 남습니다.",
   manifest: "/manifest.webmanifest",
   applicationName: "roomtone",
   appleWebApp: {
@@ -23,13 +23,13 @@ export const metadata: Metadata = {
     locale: "ko_KR",
     url: SITE_URL,
     siteName: "roomtone",
-    title: "roomtone — 매일 한 곡, 한 줄, 하나의 방",
-    description: "하루를 노래 한 곡과 문장 하나로 봉인하세요.",
+    title: "roomtone — 매일 한 장, 한 줄, 하나의 방",
+    description: "하루를 사진 한 장과 문장 하나로 봉인하세요.",
   },
   twitter: {
     card: "summary_large_image",
     title: "roomtone",
-    description: "매일 한 곡, 한 줄, 하나의 방.",
+    description: "매일 한 장, 한 줄, 하나의 방.",
   },
 };
 

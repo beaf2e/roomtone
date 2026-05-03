@@ -1,7 +1,7 @@
 {
   "name": "roomtone",
   "short_name": "roomtone",
-  "description": "매일 한 곡, 한 줄, 하나의 방.",
+  "description": "매일 한 장, 한 줄, 하나의 방.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",

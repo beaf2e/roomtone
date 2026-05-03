@@ -1,12 +1,10 @@
 "use client";
 
-import { Disc, Play, Pause } from "lucide-react";
+import { ImageOff } from "lucide-react";
 import type { Room as RoomT } from "@/lib/types";
 import { roomTone, DEFAULT_HUE, DEFAULT_WARMTH } from "@/lib/colors";
 import { formatDateLong, isToday } from "@/lib/utils";
 import { PLACEHOLDER_LINE } from "@/lib/store";
-import { usePlayer, fmtTime } from "@/lib/player";
-import { youtubeEmbedUrl } from "@/lib/youtube";
 
 export default function Room({
   date,
@@ -22,21 +20,8 @@ export default function Room({
   const hue = room?.hue ?? DEFAULT_HUE;
   const warmth = room?.warmth ?? DEFAULT_WARMTH;
   const tone = roomTone(hue, warmth);
-  const empty = !room?.line && !room?.song;
-
-  const playing = usePlayer((s) => s.playing) === date;
-  const progress = usePlayer((s) => s.progress);
-  const currentTime = usePlayer((s) => s.currentTime);
-  const duration = usePlayer((s) => s.duration);
-  const toggle = usePlayer((s) => s.toggle);
-  const hasYoutube = Boolean(room?.song?.youtubeId);
-  const canPlay = Boolean(room?.song?.previewUrl) && !hasYoutube;
-
-  function onDiscClick(e: React.MouseEvent) {
-    if (!canPlay) return;
-    e.stopPropagation();
-    void toggle(date, room?.song?.previewUrl, room?.song?.startAt ?? 0);
-  }
+  const empty = !room?.line && !room?.photo;
+  const photo = room?.photo;
 
   return (
     <article
@@ -64,97 +49,44 @@ export default function Room({
           {formatDateLong(date)}
         </div>
 
-        <div className="mt-10 flex items-center justify-center">
-          <button
-            onClick={onDiscClick}
-            disabled={!canPlay}
-            aria-label={canPlay ? (playing ? "일시정지" : "30초 미리듣기") : "이 방엔 곡이 없습니다"}
-            className={
-              "relative grid place-items-center w-[128px] h-[128px] rounded-full " +
-              (canPlay ? "cursor-pointer" : "cursor-default") +
-              " group"
-            }
-            style={{
-              background: room?.song?.artworkUrl
-                ? "transparent"
-                : `conic-gradient(from 220deg, ${tone.glowA}, ${tone.glowB}, ${tone.glowA})`,
-              boxShadow:
-                "inset 0 0 0 1px rgba(255,255,255,0.08), 0 18px 60px -20px rgba(0,0,0,0.7)",
-            }}
-          >
-            {room?.song?.artworkUrl && (
-              // eslint-disable-next-line @next/next/no-img-element
+        <div className="mt-8 flex items-center justify-center">
+          {photo ? (
+            <div
+              className={
+                "rounded-2xl overflow-hidden hairline " +
+                (active ? "shadow-[0_30px_80px_-20px_rgba(0,0,0,0.7)]" : "")
+              }
+              style={{
+                width: "min(82vw, 360px)",
+                aspectRatio: photo.width && photo.height ? `${photo.width}/${photo.height}` : "4/3",
+                maxHeight: "52dvh",
+              }}
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
-                src={room.song.artworkUrl}
+                src={photo.dataUrl}
                 alt=""
-                className={
-                  "absolute inset-0 w-full h-full rounded-full object-cover " +
-                  (playing || active ? "vinyl" : "")
-                }
-                style={{
-                  animationPlayState: playing ? "running" : active ? "running" : "paused",
-                  filter: "saturate(0.95) brightness(0.92)",
-                }}
+                className="block w-full h-full object-cover"
                 draggable={false}
               />
-            )}
-            {/* Center hole */}
+            </div>
+          ) : (
             <div
-              className="relative w-[36px] h-[36px] rounded-full"
+              className="grid place-items-center rounded-2xl hairline"
               style={{
-                background: "rgba(8,9,11,0.92)",
-                boxShadow: "inset 0 0 0 1px rgba(255,255,255,0.12)",
+                width: "min(60vw, 220px)",
+                height: "min(60vw, 220px)",
+                background: `radial-gradient(circle at 35% 30%, ${tone.glowA}, transparent 60%), ${tone.bg}`,
               }}
-            />
-            {/* Play / pause overlay */}
-            {canPlay && (
-              <div
-                className="absolute inset-0 grid place-items-center rounded-full transition"
-                style={{
-                  background:
-                    "radial-gradient(circle at center, rgba(0,0,0,0.45) 0%, rgba(0,0,0,0) 60%)",
-                  opacity: playing ? 0.0 : 1,
-                }}
-              >
-                <span className="grid place-items-center w-9 h-9 rounded-full bg-white/95 text-black shadow-lg group-hover:scale-105 transition">
-                  {playing ? <Pause size={14} /> : <Play size={14} className="translate-x-[1px]" />}
-                </span>
-              </div>
-            )}
-            {/* Progress ring */}
-            {canPlay && (
-              <svg
-                className="absolute inset-0 w-full h-full -rotate-90 pointer-events-none"
-                viewBox="0 0 128 128"
-                aria-hidden
-              >
-                <circle
-                  cx="64"
-                  cy="64"
-                  r="62"
-                  fill="none"
-                  stroke="rgba(255,255,255,0.12)"
-                  strokeWidth="2"
-                />
-                <circle
-                  cx="64"
-                  cy="64"
-                  r="62"
-                  fill="none"
-                  stroke="rgba(255,255,255,0.85)"
-                  strokeWidth="2"
-                  strokeDasharray={`${2 * Math.PI * 62}`}
-                  strokeDashoffset={`${2 * Math.PI * 62 * (1 - (playing ? progress : 0))}`}
-                  strokeLinecap="round"
-                  style={{ transition: "stroke-dashoffset 200ms linear" }}
-                />
-              </svg>
-            )}
-          </button>
+              aria-hidden
+            >
+              <ImageOff size={20} className="opacity-30" />
+            </div>
+          )}
         </div>
 
         <h1
-          className="mt-8 text-[26px] font-semibold tracking-tight leading-snug"
+          className="mt-7 text-[26px] font-semibold tracking-tight leading-snug"
           style={{ color: tone.ink }}
         >
           {room?.line || (
@@ -164,60 +96,8 @@ export default function Room({
           )}
         </h1>
 
-        <div className="mt-4 flex items-center justify-center gap-2 text-[13.5px] text-[var(--fg-muted)]">
-          <Disc size={13} className="opacity-70" />
-          {room?.song?.title ? (
-            <span className="truncate">
-              {room.song.title}
-              {room.song.artist ? (
-                <span className="text-[var(--fg-faint)]"> · {room.song.artist}</span>
-              ) : null}
-            </span>
-          ) : (
-            <span className="text-[var(--fg-faint)]">아직 곡이 없습니다</span>
-          )}
-        </div>
-
-        {canPlay && (
-          <div className="mt-1.5 text-[11.5px] text-[var(--fg-faint)] tabular-nums">
-            {fmtTime(playing ? currentTime : (room?.song?.startAt ?? 0))}
-            <span className="opacity-50"> / </span>
-            {fmtTime(playing && duration > 0 ? duration : 30)}
-          </div>
-        )}
-
-        {hasYoutube && room?.song?.youtubeId && (
-          <div
-            className="mt-5 mx-auto rounded-2xl overflow-hidden hairline relative"
-            style={{ maxWidth: 380, aspectRatio: "16 / 9" }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <iframe
-              key={room.song.youtubeId}
-              src={youtubeEmbedUrl(room.song.youtubeId)}
-              className="absolute inset-0 w-full h-full"
-              frameBorder={0}
-              allow="autoplay; encrypted-media; picture-in-picture; fullscreen"
-              loading="lazy"
-              title="YouTube player"
-            />
-          </div>
-        )}
-
-        {room?.song?.trackViewUrl && !hasYoutube && (
-          <a
-            href={room.song.trackViewUrl}
-            target="_blank"
-            rel="noreferrer"
-            onClick={(e) => e.stopPropagation()}
-            className="mt-3 inline-block text-[11px] uppercase tracking-[0.18em] text-[var(--fg-faint)] hover:text-[var(--fg-muted)]"
-          >
-            Apple Music에서 전체 듣기 →
-          </a>
-        )}
-
         {empty && isToday(date) && (
-          <div className="mt-10 text-[12px] text-[var(--fg-faint)]">
+          <div className="mt-8 text-[12px] text-[var(--fg-faint)]">
             방을 두드려 오늘을 봉인하세요
           </div>
         )}

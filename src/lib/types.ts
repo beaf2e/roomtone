@@ -3,24 +3,13 @@ export type Room = {
   date: string;
   /** A single line — the title of the day. Optional but encouraged. */
   line?: string;
-  /** The day's track. */
-  song?: {
-    title: string;
-    artist?: string;
-    /** Apple/iTunes track id, when picked from search. */
-    trackId?: number;
-    /** 30s m4a preview URL — playable in <audio>. */
-    previewUrl?: string;
-    /** Square artwork URL (highest the API returns, 600x600). */
-    artworkUrl?: string;
-    /** Deep link to the song on Apple Music (for "전체 듣기" exit). */
-    trackViewUrl?: string;
-    /** Seconds offset within the 30s preview to start playback at. 0..~25. */
-    startAt?: number;
-    /** YouTube video id (extracted from any youtube/youtu.be URL) for full-track embed. */
-    youtubeId?: string;
+  /** The day's photo. Stored as a resized data URL (long edge ~1280, JPEG). */
+  photo?: {
+    dataUrl: string;
+    width: number;
+    height: number;
   };
-  /** Hue 0–360 used to tint the room. Picked by the user (or auto from song). */
+  /** Hue 0–360 used to tint the room. Picked by the user (or auto from photo). */
   hue: number;
   /** Mood scale 0–1: 0 = somber/cool, 1 = warm/bright. Affects lightness. */
   warmth: number;

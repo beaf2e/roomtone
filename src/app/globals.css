@@ -133,11 +133,3 @@ body {
   will-change: transform;
 }
 
-/* Vinyl spinner */
-@keyframes vinyl {
-  to { transform: rotate(360deg); }
-}
-.vinyl {
-  animation: vinyl 16s linear infinite;
-  will-change: transform;
-}
